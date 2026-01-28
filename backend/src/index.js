@@ -12,12 +12,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-<<<<<<< HEAD
 // Render/Vercel sit behind proxies; safe default.
 app.set("trust proxy", 1);
-
-=======
->>>>>>> 662dfc74c5633732253a2f6db3021c7d544b6019
 /* ======================
    DATABASE CONNECTION
 ====================== */
@@ -26,7 +22,6 @@ connectDB();
 /* ======================
    MIDDLEWARE
 ====================== */
-<<<<<<< HEAD
 const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
   .map((s) => s.trim())
@@ -54,17 +49,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-=======
-app.use(
-  cors({
-    origin: "https://task-manager-seven-lime.vercel.app", // ✅ NO trailing slash
-    credentials: true,
-  }),
-);
-
-app.use(express.json());
-
->>>>>>> 662dfc74c5633732253a2f6db3021c7d544b6019
 /* ======================
    HEALTH CHECK
 ====================== */
