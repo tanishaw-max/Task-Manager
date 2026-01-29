@@ -40,12 +40,8 @@ const TasksPage = () => {
     loadTasks();
     loadUsers();
     
-    // Auto-refresh tasks every 5 seconds to show status updates
-    const interval = setInterval(() => {
-      loadTasks();
-    }, 5000);
     
-    return () => clearInterval(interval);
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
