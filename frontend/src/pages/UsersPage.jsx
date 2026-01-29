@@ -98,7 +98,7 @@ const UsersPage = () => {
       const updateData = {};
 
       // Only send fields that user actually typed (non-empty strings)
-      ["username", "email", "phone", "address", "password"].forEach((field) => {
+      ["username", "phone", "address", "password"].forEach((field) => {
         const value = form[field];
         if (typeof value === "string" && value.trim() !== "") {
           updateData[field] = value.trim();
@@ -262,7 +262,7 @@ const UsersPage = () => {
                   <option value="super-admin">Super Admin</option>
                 </select>
               </div>
-              {editingUser && (
+              {editingUserId && (
                 <div className="form-group">
                   <label className="checkbox-label">
                     <input
@@ -280,7 +280,7 @@ const UsersPage = () => {
             {success && <div className="success-text">{success}</div>}
             <div className="form-actions">
               <button type="submit" className="primary-btn" disabled={loading}>
-                {loading ? "Saving..." : editingUser ? "Update User" : "Create User"}
+                {loading ? "Saving..." : editingUserId ? "Update User" : "Create User"}
               </button>
               <button type="button" className="secondary-btn" onClick={handleCancel}>
                 Cancel
