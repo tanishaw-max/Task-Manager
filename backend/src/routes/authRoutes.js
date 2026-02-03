@@ -5,9 +5,7 @@ import Role from "../models/Role.js";
 
 const router = express.Router();
 
-/* ======================
-   JWT TOKEN GENERATOR
-====================== */
+
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -19,9 +17,6 @@ const generateToken = (user) => {
   );
 };
 
-/* ======================
-   ENSURE DEFAULT ROLES
-====================== */
 const ensureDefaultRoles = async () => {
   const roles = [
     { roleTitle: "super-admin", description: "Full access" },
@@ -37,9 +32,7 @@ const ensureDefaultRoles = async () => {
   }
 };
 
-/* ======================
-   REGISTER
-====================== */
+
 router.post("/register", async (req, res) => {
   try {
     console.log("Register request body:", req.body);
@@ -69,9 +62,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    /* ======================
-       ROLE LOGIC
-    ====================== */
+
     let finalRole = "user";
 
     if (roleTitle === "manager") {
@@ -127,9 +118,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-/* ======================
-   LOGIN
-====================== */
+
 router.post("/login", async (req, res) => {
   try {
     console.log("Login request body:", req.body);

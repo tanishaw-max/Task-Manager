@@ -29,9 +29,9 @@ router.get("/", protect, async (req, res) => {
     let filter = { isDeleted: false };
 
     if (role === "super-admin") {
-      // see all users
+  
     } else if (role === "manager") {
-      // manager can see self + employees (role "user"), not other managers or super-admins
+     
       const userRole = await Role.findOne({ roleTitle: "user" });
       const users = await User.find({
         $or: [
@@ -44,7 +44,6 @@ router.get("/", protect, async (req, res) => {
         .select("-password");
       return res.json(users);
     } else {
-      // regular user: only self
       const self = await User.findById(req.user.id)
         .populate("roleId", "roleTitle")
         .select("-password");

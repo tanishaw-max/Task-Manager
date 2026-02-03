@@ -24,7 +24,7 @@ export const getTasks = async (req, res) => {
     let filter = { isDeleted: false };
 
     if (role === "super-admin") {
-      // no extra filter, see all tasks
+      
     } else if (role === "manager") {
       const visibleUserIds = await getManagerVisibleUserIds(req.user.id);
       filter.userId = { $in: visibleUserIds };
@@ -60,10 +60,10 @@ export const createTask = async (req, res) => {
     let targetUserId = userId || req.user.id;
 
     if (role === "user") {
-      // user can only create tasks for themselves
+   
       targetUserId = req.user.id;
     } else if (role === "manager") {
-      // manager can assign to self or employees (users with "user" role)
+      
       if (!targetUserId) targetUserId = req.user.id;
 
       const targetUser = await User.findById(targetUserId).populate("roleId");
@@ -86,7 +86,7 @@ export const createTask = async (req, res) => {
       userId: targetUserId,
     });
 
-    // Initialize status history with creation
+
     task.statusHistory = [{
       status: "pending",
       changedBy: req.user.id,
@@ -130,9 +130,7 @@ export const updateTask = async (req, res) => {
         return res.status(403).json({ message: "You cannot update this task" });
       }
     }
-    // super-admin can update any task
 
-    // Track status changes in history
     const oldStatus = task.status;
     if (status !== undefined && status !== oldStatus) {
       if (!task.statusHistory) {
@@ -152,7 +150,7 @@ export const updateTask = async (req, res) => {
 
     await task.save();
     
-    // Populate the status history for response
+    
     await task.populate([
       { path: "userId", select: "username email" },
       { path: "statusHistory.changedBy", select: "username email" },
@@ -186,7 +184,7 @@ export const deleteTask = async (req, res) => {
         return res.status(403).json({ message: "You cannot delete this task" });
       }
     }
-    // super-admin can delete any task
+
 
     task.isDeleted = true;
     await task.save();
