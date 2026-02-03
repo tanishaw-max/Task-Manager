@@ -1,30 +1,56 @@
-import { useState } from "react";
+import { useState ,useEffect} from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import "./LoginPage.css";
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const authContext = useAuth();
+  const { login, error: authError, clearError } = authContext || {};
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    if (error) setError("");
+    if (authError && clearError) clearError();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (clearError) clearError();
     setLoading(true);
+    
     try {
+      if (!form.email || !form.password) {
+        throw new Error('Please fill in all fields');
+      }
+      
       const res = await api.login(form);
-      login(res.data.user, res.data.token);
-      navigate("/");
+      
+      if (!res.data || !res.data.user || !res.data.token) {
+        throw new Error('Invalid response from server');
+      }
+      
+      if (login) {
+        login(res.data.user, res.data.token);
+        navigate("/");
+      } else {
+        throw new Error('Authentication system not available');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      console.error('Login error:', err);
+      const errorMessage = err.response?.data?.message || err.message || "Login failed";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

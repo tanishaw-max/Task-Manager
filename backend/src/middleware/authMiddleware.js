@@ -2,6 +2,8 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Role from "../models/Role.js";
 
+
+
 // Verify JWT and attach user + role to req.user
 export const protect = async (req, res, next) => {
   try {
@@ -11,17 +13,35 @@ export const protect = async (req, res, next) => {
       : null;
 
     if (!token) {
-      return res.status(401).json({ message: "Not authorized, no token" });
+      return res.status(401).json({ message: "Access denied. No token provided." });
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "dev_secret_change_me"
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (!decoded.id || !decoded.role) {
+      return res.status(401).json({ message: "Invalid token format" });
+    }
+
+    // Handle hardcoded admin user
+    if (decoded.id === "admin" && decoded.role === "super-admin") {
+      req.user = {
+        id: "admin",
+        username: "admin",
+        email: "admin@taskmanager.com",
+        role: "super-admin",
+        roleId: null,
+      };
+      return next();
+    }
+
+    // Validate ObjectId format
+    if (!decoded.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(401).json({ message: "Invalid user ID format" });
+    }
 
     const user = await User.findById(decoded.id).populate("roleId");
     if (!user || user.isDeleted || !user.isActive) {
-      return res.status(401).json({ message: "User not active or not found" });
+      return res.status(401).json({ message: "User not found or inactive" });
     }
 
     req.user = {
@@ -34,8 +54,14 @@ export const protect = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Auth error:", error.message);
-    return res.status(401).json({ message: "Not authorized, token failed" });
+    console.error("Auth middleware error:", error.message);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: "Token expired" });
+    }
+    return res.status(401).json({ message: "Authentication failed" });
   }
 };
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import "./UsersPage.css";
 
 const UsersPage = () => {
@@ -14,7 +14,9 @@ const UsersPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingBaseUser, setEditingBaseUser] = useState(null);
-  const [form, setForm] = useState({
+  
+  // Extract initial form state for reusability
+  const initialFormState = {
     username: "",
     email: "",
     password: "",
@@ -22,7 +24,9 @@ const UsersPage = () => {
     address: "",
     roleTitle: "user",
     isActive: true,
-  });
+  };
+  
+  const [form, setForm] = useState(initialFormState);
 
   const isSuperAdmin = role === "super-admin";
 
@@ -47,6 +51,14 @@ const UsersPage = () => {
     }));
   };
 
+  // Extract form reset logic
+  const resetForm = () => {
+    setForm(initialFormState);
+    setShowForm(false);
+    setEditingUserId(null);
+    setEditingBaseUser(null);
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -55,16 +67,7 @@ const UsersPage = () => {
     try {
       await api.createUser(form);
       setSuccess("User created successfully!");
-      setForm({
-        username: "",
-        email: "",
-        password: "",
-        phone: "",
-        address: "",
-        roleTitle: "user",
-        isActive: true,
-      });
-      setShowForm(false);
+      resetForm();
       await loadUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create user");
@@ -120,18 +123,7 @@ const UsersPage = () => {
 
       await api.updateUser(editingUserId, updateData);
       setSuccess("User updated successfully!");
-      setEditingUserId(null);
-      setEditingBaseUser(null);
-      setShowForm(false);
-      setForm({
-        username: "",
-        email: "",
-        password: "",
-        phone: "",
-        address: "",
-        roleTitle: "user",
-        isActive: true,
-      });
+      resetForm();
       await loadUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update user");
@@ -152,18 +144,7 @@ const UsersPage = () => {
   };
 
   const handleCancel = () => {
-    setShowForm(false);
-    setEditingUserId(null);
-    setEditingBaseUser(null);
-    setForm({
-      username: "",
-      email: "",
-      password: "",
-      phone: "",
-      address: "",
-      roleTitle: "user",
-      isActive: true,
-    });
+    resetForm();
   };
 
   return (

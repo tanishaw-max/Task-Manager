@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import "./TasksPage.css";
 
 const emptyForm = { taskTitle: "", description: "", userId: "" };
@@ -42,7 +42,7 @@ const TasksPage = () => {
     
     
     
- 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChange = (e) => {

@@ -1,19 +1,31 @@
 import Task from "../models/Task.js";
 import User from "../models/User.js";
 import Role from "../models/Role.js";
+import mongoose from "mongoose";
+
+// Cache for role lookups to avoid repeated DB queries
+let roleCache = {};
+
+// Helper: get cached role by title
+const getCachedRole = async (roleTitle) => {
+  if (!roleCache[roleTitle]) {
+    roleCache[roleTitle] = await Role.findOne({ roleTitle }).lean();
+  }
+  return roleCache[roleTitle];
+};
 
 // Helper: get ids of users that a manager can manage (only users with "user" role)
 const getManagerVisibleUserIds = async (managerId) => {
-  const userRole = await Role.findOne({ roleTitle: "user" });
-  if (!userRole) return [managerId];
+  const userRole = await getCachedRole("user");
+  if (!userRole) return [new mongoose.Types.ObjectId(managerId)];
 
   const employees = await User.find({
     roleId: userRole._id,
     isDeleted: false,
     isActive: true,
-  }).select("_id");
+  }).select("_id").lean();
 
-  return [managerId, ...employees.map((e) => e._id)];
+  return [new mongoose.Types.ObjectId(managerId), ...employees.map(e => e._id)];
 };
 
 // GET /api/tasks - list tasks based on role
@@ -84,23 +96,21 @@ export const createTask = async (req, res) => {
       taskTitle,
       description,
       userId: targetUserId,
+      statusHistory: [{
+        status: "pending",
+        changedBy: req.user.id,
+        changedAt: new Date(),
+        note: "Task created",
+      }]
     });
 
+    // Use single populate call for better performance
+    const populatedTask = await Task.findById(task._id)
+      .populate({ path: "userId", select: "username email" })
+      .populate({ path: "statusHistory.changedBy", select: "username email" })
+      .lean();
 
-    task.statusHistory = [{
-      status: "pending",
-      changedBy: req.user.id,
-      changedAt: new Date(),
-      note: "Task created",
-    }];
-    await task.save();
-
-    await task.populate([
-      { path: "userId", select: "username email" },
-      { path: "statusHistory.changedBy", select: "username email" },
-    ]);
-
-    return res.status(201).json(task);
+    return res.status(201).json(populatedTask);
   } catch (error) {
     console.error("Create task error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -126,7 +136,10 @@ export const updateTask = async (req, res) => {
       }
     } else if (role === "manager") {
       const visibleUserIds = await getManagerVisibleUserIds(req.user.id);
-      if (!visibleUserIds.map(String).includes(task.userId.toString())) {
+      // Use ObjectId comparison instead of string conversion for better performance
+      const taskUserIdStr = task.userId.toString();
+      const hasAccess = visibleUserIds.some(id => id.toString() === taskUserIdStr);
+      if (!hasAccess) {
         return res.status(403).json({ message: "You cannot update this task" });
       }
     }
@@ -150,13 +163,13 @@ export const updateTask = async (req, res) => {
 
     await task.save();
     
+    // Use single populate call for better performance
+    const updatedTask = await Task.findById(task._id)
+      .populate({ path: "userId", select: "username email" })
+      .populate({ path: "statusHistory.changedBy", select: "username email" })
+      .lean();
     
-    await task.populate([
-      { path: "userId", select: "username email" },
-      { path: "statusHistory.changedBy", select: "username email" },
-    ]);
-    
-    return res.json(task);
+    return res.json(updatedTask);
   } catch (error) {
     console.error("Update task error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -180,7 +193,10 @@ export const deleteTask = async (req, res) => {
       }
     } else if (role === "manager") {
       const visibleUserIds = await getManagerVisibleUserIds(req.user.id);
-      if (!visibleUserIds.map(String).includes(task.userId.toString())) {
+      // Use ObjectId comparison for better performance
+      const taskUserIdStr = task.userId.toString();
+      const hasAccess = visibleUserIds.some(id => id.toString() === taskUserIdStr);
+      if (!hasAccess) {
         return res.status(403).json({ message: "You cannot delete this task" });
       }
     }

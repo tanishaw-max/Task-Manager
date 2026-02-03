@@ -3,9 +3,38 @@ import axios from "axios";
 const instance = axios.create({
   baseURL:
     import.meta.env.VITE_API_URL ||
-    "https://task-manager-qv7e.onrender.com",
-  withCredentials: true, // important for auth
+    "http://localhost:5000",
+  withCredentials: true,
+  timeout: 10000, // 10 second timeout
 });
+
+// Request interceptor
+instance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('rbac_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+instance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('rbac_user');
+      localStorage.removeItem('rbac_token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const setToken = (token) => {
   if (token) {

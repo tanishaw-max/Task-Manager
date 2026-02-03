@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import "./RegisterPage.css";
 
 const RegisterPage = () => {
@@ -12,9 +12,8 @@ const RegisterPage = () => {
     email: "",
     password: "",
     phone: "",
-    address: "",
-    roleTitle: "user",
-    registrationKey: "",
+    address: ""
+
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -124,41 +123,8 @@ const RegisterPage = () => {
               required
             />
           </div>
-          <div className="form-group">
-            <label htmlFor="roleTitle">Role</label>
-            <select
-              id="roleTitle"
-              name="roleTitle"
-              value={form.roleTitle}
-              onChange={handleChange}
-            >
-              <option value="user">User (Default - Can manage own tasks)</option>
-              <option value="manager">Manager (Can assign tasks to employees)</option>
-              <option value="super-admin">Super Admin (Full access)</option>
-            </select>
-            <small style={{ color: "#9ca3af", fontSize: "0.75rem", marginTop: "0.25rem", display: "block" }}>
-              {form.roleTitle === "user" && "No registration key needed"}
-              {form.roleTitle === "manager" && "Requires registration key: manager_key_2024"}
-              {form.roleTitle === "super-admin" && "Requires registration key: super_admin_key_2024"}
-            </small>
-          </div>
-          {(form.roleTitle === "manager" || form.roleTitle === "super-admin") && (
-            <div className="form-group">
-              <label htmlFor="registrationKey">Registration Key</label>
-              <input
-                id="registrationKey"
-                name="registrationKey"
-                type="text"
-                placeholder="Enter registration key"
-                value={form.registrationKey}
-                onChange={handleChange}
-                required
-              />
-              <small style={{ color: "#9ca3af", fontSize: "0.75rem", marginTop: "0.25rem", display: "block" }}>
-                Required for manager and super-admin roles
-              </small>
-            </div>
-          )}
+         
+       
           {error && <div className="error-text">{error}</div>}
           {success && <div className="success-text">{success}</div>}
           <button className="primary-btn" type="submit" disabled={loading}>
