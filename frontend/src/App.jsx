@@ -6,6 +6,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import TasksPage from "./pages/TasksPage";
+import ProjectsPage from "./pages/ProjectsPage";
 import UsersPage from "./pages/UsersPage";
 
 function PrivateRoute({ children }) {
@@ -36,6 +37,14 @@ function App() {
             element={
               <PrivateRoute>
                 <TasksPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/projects"
+            element={
+              <PrivateRoute>
+                <ProjectsPage />
               </PrivateRoute>
             }
           />

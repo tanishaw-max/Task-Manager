@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
 import api from "../services/api";
 import { useAuth } from "../context/useAuth";
-import "./TasksPage.css";
 
-const emptyForm = { taskTitle: "", description: "", userId: "" };
+const emptyForm = { taskTitle: "", description: "", userId: "", dueDate: "", projectId: "" };
 
 const TasksPage = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const role = user?.role?.toLowerCase();
   const [tasks, setTasks] = useState([]);
+  const [filteredTasks, setFilteredTasks] = useState([]);
   const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const canAssignToOthers = role === "super-admin" || role === "manager";
 
@@ -26,27 +30,47 @@ const TasksPage = () => {
     }
   };
 
+  const filterTasks = (status) => {
+    if (status === "all") setFilteredTasks(tasks);
+    else setFilteredTasks(tasks.filter((task) => task.status === status));
+    setActiveFilter(status);
+  };
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const filterParam = urlParams.get("filter");
+    if (filterParam) setActiveFilter(filterParam);
+  }, [location]);
+
+  useEffect(() => {
+    filterTasks(activeFilter);
+  }, [tasks, activeFilter]);
+
   const loadUsers = async () => {
     if (!canAssignToOthers) return;
     try {
       const res = await api.getUsers();
       setUsers(res.data || []);
-    } catch {
-      // ignore
-    }
+    } catch {}
+  };
+
+  const loadProjects = async () => {
+    try {
+      const res = await api.getProjects();
+      setProjects(res.data || []);
+    } catch {}
   };
 
   useEffect(() => {
     loadTasks();
     loadUsers();
-    
-    
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadProjects();
   }, []);
 
   const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    if (name === "projectId") setForm((p) => ({ ...p, [name]: value, userId: "" }));
+    else setForm((p) => ({ ...p, [name]: value }));
   };
 
   const handleCreate = async (e) => {
@@ -54,18 +78,15 @@ const TasksPage = () => {
     setLoading(true);
     setError("");
     try {
-      const payload = {
-        taskTitle: form.taskTitle,
-        description: form.description,
-      };
-      if (canAssignToOthers && form.userId) {
-        payload.userId = form.userId;
-      }
+      const payload = { taskTitle: form.taskTitle, description: form.description };
+      if (form.dueDate) payload.dueDate = form.dueDate;
+      if (form.projectId) payload.projectId = form.projectId;
+      if (canAssignToOthers && form.userId) payload.userId = form.userId;
       await api.createTask(payload);
       setForm(emptyForm);
       await loadTasks();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create task");
+      setError(err.response?.data?.message || err.message || "Failed to create task");
     } finally {
       setLoading(false);
     }
@@ -96,10 +117,7 @@ const TasksPage = () => {
 
   const handleUpdateTask = async (id) => {
     try {
-      await api.updateTask(id, { 
-        taskTitle: editForm.taskTitle, 
-        description: editForm.description 
-      });
+      await api.updateTask(id, editForm);
       setEditingTask(null);
       await loadTasks();
     } catch (err) {
@@ -119,189 +137,255 @@ const TasksPage = () => {
 
   return (
     <Layout>
-      <div className="tasks-header">
+      {/* HEADER */}
+      <div className="flex justify-between items-start mb-[2rem] p-[1.5rem] rounded-[1rem] text-white shadow-[0_8px_32px_rgba(102,126,234,0.3)] bg-gradient-to-br from-[#667eea] to-[#764ba2]">
         <div>
-          <h1>Tasks</h1>
-          <p>
+          <h1 className="m-0 text-[2rem] font-bold [text-shadow:0_2px_4px_rgba(0,0,0,0.1)]">Task Management 📋</h1>
+          <p className="mt-[0.5rem] text-[1rem] opacity-90">
             {role === "super-admin" && "You can manage all tasks and assign to any user."}
-            {role === "manager" &&
-              "You can manage your tasks and employees (users) tasks, but not other managers."}
+            {role === "manager" && "You can manage your tasks and employees (users) tasks, but not other managers."}
             {role === "user" && "You can manage only your own tasks."}
           </p>
         </div>
+        <div className="flex flex-col items-end gap-[0.5rem]">
+          <span className="px-[1rem] py-[0.5rem] rounded-full bg-[rgba(255,255,255,0.15)] backdrop-blur border border-[rgba(255,255,255,0.2)] text-[0.85rem] font-medium">
+            📊 {tasks.length} Total Tasks
+          </span>
+          <span className="px-[1rem] py-[0.5rem] rounded-full bg-[rgba(251,191,36,0.2)] backdrop-blur border border-[rgba(251,191,36,0.3)] text-[0.85rem] font-medium">
+            ⏳ {tasks.filter((t) => t.status === "pending").length} Pending
+          </span>
+        </div>
       </div>
 
-      <div className="tasks-layout">
-        <section className="task-form-card">
-          <h2>Create task</h2>
-          <form className="task-form" onSubmit={handleCreate} autoComplete="off">
-            <div className="form-row">
-              <div className="field">
-                <label htmlFor="taskTitle">Title</label>
-                <input
-                  id="taskTitle"
-                  name="taskTitle"
-                  value={form.taskTitle}
-                  onChange={handleChange}
-                  autoComplete="off"
-                  required
-                />
-              </div>
+      {/* LAYOUT */}
+      <div className="mt-[1.5rem] grid grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-[1.5rem] max-[900px]:grid-cols-1">
+        {/* FORM */}
+        <section className="p-[1.5rem] rounded-[1rem] bg-white border border-[#e5e7eb] shadow-[0_4px_8px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_12px_rgba(0,0,0,0.15)] transition-all">
+          <h2 className="mb-[1rem] text-[1.05rem] text-[#111827]">Create task</h2>
+
+          <form className="flex flex-col gap-[0.9rem]" onSubmit={handleCreate} autoComplete="off">
+            {/* Title */}
+            <div className="flex flex-col gap-[0.5rem]">
+              <label className="text-[0.85rem] text-[#4b5563]">Title</label>
+              <input
+                name="taskTitle"
+                value={form.taskTitle}
+                onChange={handleChange}
+                required
+                className="px-[0.85rem] py-[0.65rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.9rem]
+                           focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.2)] focus:-translate-y-[1px] transition-all"
+              />
             </div>
-            <div className="form-row">
-              <div className="field">
-                <label htmlFor="description">Description</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows="3"
-                  value={form.description}
-                  onChange={handleChange}
-                  autoComplete="off"
-                  required
-                />
-              </div>
+
+            {/* Description */}
+            <div className="flex flex-col gap-[0.5rem]">
+              <label className="text-[0.85rem] text-[#4b5563]">Description</label>
+              <textarea
+                rows={3}
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                required
+                className="px-[0.85rem] py-[0.65rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.9rem]
+                           focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.2)] focus:-translate-y-[1px] transition-all"
+              />
             </div>
+
+            {/* Due Date */}
+            <div className="flex flex-col gap-[0.5rem]">
+              <label className="text-[0.85rem] text-[#4b5563]">Due Date</label>
+              <input
+                type="date"
+                name="dueDate"
+                value={form.dueDate}
+                onChange={handleChange}
+                className="px-[0.85rem] py-[0.65rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.9rem]
+                           focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.2)] focus:-translate-y-[1px] transition-all"
+              />
+            </div>
+
+            {/* Project */}
+            <div className="flex flex-col gap-[0.5rem]">
+              <label className="text-[0.85rem] text-[#4b5563]">Project</label>
+              <select
+                name="projectId"
+                value={form.projectId}
+                onChange={handleChange}
+                className="px-[0.85rem] py-[0.65rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.9rem] bg-white"
+              >
+                <option value="">Select project (optional)</option>
+                {projects.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Assign */}
             {canAssignToOthers && (
-              <div className="form-row">
-                <div className="field">
-                  <label htmlFor="userId">Assign to</label>
-                  <select
-                    id="userId"
-                    name="userId"
-                    value={form.userId}
-                    onChange={handleChange}
-                  >
-                    <option value="">Select user (optional)</option>
-                    {users.map((u) => (
-                      <option key={u._id} value={u._id}>
-                        {u.username} ({u.roleId?.roleTitle})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex flex-col gap-[0.5rem]">
+                <label className="text-[0.85rem] text-[#4b5563]">Assign to</label>
+                <select
+                  name="userId"
+                  value={form.userId}
+                  onChange={handleChange}
+                  className="px-[0.85rem] py-[0.65rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.9rem] bg-white"
+                >
+                  <option value="">Select user (optional)</option>
+                  {users.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.username}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
-            {error && <div className="error-text">{error}</div>}
-            <button className="primary-btn" type="submit" disabled={loading}>
+
+            {error && (
+              <div className="p-[0.75rem] rounded-[0.5rem] bg-[rgba(220,38,38,0.1)] border border-[rgba(220,38,38,0.3)] text-[#fecaca] text-[0.85rem]">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-[1.25rem] py-[0.7rem] rounded-[0.6rem] bg-gradient-to-br from-[#3b82f6] to-[#2563eb]
+                         text-white text-[0.9rem] font-medium transition-all hover:-translate-y-[1px]
+                         hover:shadow-[0_4px_12px_rgba(59,130,246,0.4)] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               {loading ? "Creating..." : "Create task"}
             </button>
           </form>
         </section>
 
-        <section className="tasks-list-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2>Task list</h2>
-            <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-              🔄 Auto-refreshes every 5s
-            </span>
+        {/* TASK LIST */}
+        <section className="p-[1.5rem] rounded-[1rem] bg-white border border-[#e5e7eb] shadow-[0_4px_8px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_12px_rgba(0,0,0,0.15)] transition-all">
+          <h2 className="mb-[1rem] text-[1.05rem] text-[#111827]">Task list</h2>
+
+          {/* FILTERS */}
+          <div className="flex flex-wrap gap-[0.5rem] mb-[1rem]">
+            {["all", "pending", "in-progress", "completed"].map((f) => (
+              <button
+                key={f}
+                onClick={() => filterTasks(f)}
+                className={`px-[1rem] py-[0.5rem] rounded-[0.6rem] border text-[0.85rem] transition-all
+                  ${
+                    activeFilter === f
+                      ? "bg-gradient-to-br from-[#3b82f6] to-[#2563eb] text-white border-[#2563eb] shadow-[0_2px_8px_rgba(59,130,246,0.3)]"
+                      : "bg-white text-[#6b7280] border-[#d1d5db] hover:border-[#2563eb] hover:text-[#2563eb] hover:-translate-y-[1px]"
+                  }`}
+              >
+                {f === "all" && `All (${tasks.length})`}
+                {f === "pending" && `⏳ Pending (${tasks.filter((t) => t.status === "pending").length})`}
+                {f === "in-progress" && `🔄 In Progress (${tasks.filter((t) => t.status === "in-progress").length})`}
+                {f === "completed" && `✅ Completed (${tasks.filter((t) => t.status === "completed").length})`}
+              </button>
+            ))}
           </div>
-          <div className="tasks-list">
-            {tasks.length === 0 && <p className="empty-text">No tasks yet.</p>}
-            {tasks.map((t) => (
-              <article key={t._id} className="task-item">
-                {editingTask === t._id ? (
-                  <div className="task-edit-form">
-                    <input
-                      type="text"
-                      value={editForm.taskTitle}
-                      onChange={(e) => setEditForm({ ...editForm, taskTitle: e.target.value })}
-                      className="edit-input"
-                      placeholder="Task title"
-                    />
-                    <textarea
-                      value={editForm.description}
-                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                      className="edit-textarea"
-                      placeholder="Description"
-                      rows="3"
-                    />
-                    <div className="edit-actions">
-                      <button
-                        className="save-btn"
-                        onClick={() => handleUpdateTask(t._id)}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="cancel-btn"
-                        onClick={handleCancelEdit}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+
+          {/* TASKS */}
+          <div className="mt-[0.5rem] flex flex-col gap-[0.8rem] max-h-[480px] overflow-y-auto">
+            {filteredTasks.length === 0 && (
+              <p className="text-[#9ca3af] text-[0.9rem] text-center p-[2rem]">
+                No {activeFilter === "all" ? "" : activeFilter} tasks yet.
+              </p>
+            )}
+
+            {filteredTasks.map((t) => (
+              <article
+                key={t._id}
+                className="p-[1.25rem] rounded-[0.9rem] bg-white border border-[#e5e7eb]
+                           transition-all hover:border-[#2563eb] hover:-translate-y-[2px]
+                           hover:shadow-[0_4px_12px_rgba(37,99,235,0.2)]"
+              >
+                {/* Header */}
+                <div className="flex justify-between items-start gap-[0.5rem]">
+                  <div>
+                    <h3 className="m-0 text-[1rem] text-[#111827]">{t.taskTitle}</h3>
+                    <p className="mt-[0.2rem] text-[0.8rem] text-[#6b7280]">
+                      Assigned to: {t.userId?.username} ({t.userId?.email})
+                      {t.dueDate && <> • Due: {new Date(t.dueDate).toLocaleDateString()}</>}
+                      {t.projectId?.name && <> • Project: {t.projectId.name}</>}
+                    </p>
+                    <p className="mt-[0.2rem] text-[0.8rem] text-[#9ca3af]">
+                      Created: {new Date(t.createdAt).toLocaleString()}
+                      {t.updatedAt !== t.createdAt && <> • Updated: {new Date(t.updatedAt).toLocaleString()}</>}
+                    </p>
                   </div>
-                ) : (
-                  <>
-                    <header className="task-item-header">
-                      <div>
-                        <h3>{t.taskTitle}</h3>
-                        <p className="task-meta">
-                          Assigned to: {t.userId?.username} ({t.userId?.email})
-                        </p>
-                        <p className="task-meta" style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                          Created: {new Date(t.createdAt).toLocaleString()}
-                          {t.updatedAt !== t.createdAt && (
-                            <> • Updated: {new Date(t.updatedAt).toLocaleString()}</>
-                          )}
-                        </p>
-                      </div>
-                      <span className={`status-chip status-${t.status}`}>
-                        {t.status === "pending" && "⏳"}
-                        {t.status === "in-progress" && "🔄"}
-                        {t.status === "completed" && "✅"}
-                        {" "}
-                        {t.status}
-                      </span>
-                    </header>
-                    <p className="task-desc">{t.description}</p>
-                    
-                    {/* Status History */}
-                    {t.statusHistory && t.statusHistory.length > 0 && (
-                      <div className="status-history">
-                        <strong>Status History:</strong>
-                        <ul>
-                          {t.statusHistory.slice().reverse().map((history, idx) => (
-                            <li key={idx}>
-                              <span className="history-status">{history.status}</span>
-                              {" "}by {history.changedBy?.username || "System"}
-                              {" "}on {new Date(history.changedAt).toLocaleString()}
-                              {history.note && (
-                                <span className="history-note">{history.note}</span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    <div className="task-actions">
-                      <select
-                        value={t.status}
-                        onChange={(e) => handleStatusChange(t._id, e.target.value)}
-                        className="status-select"
-                      >
-                        <option value="pending">⏳ Pending</option>
-                        <option value="in-progress">🔄 In Progress</option>
-                        <option value="completed">✅ Completed</option>
-                      </select>
-                      <button
-                        className="edit-btn"
-                        type="button"
-                        onClick={() => handleEdit(t)}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        className="delete-btn"
-                        type="button"
-                        onClick={() => handleDelete(t._id)}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </>
+
+                  <span
+                    className={`px-[0.75rem] py-[0.35rem] rounded-full text-[0.75rem] font-medium capitalize whitespace-nowrap border
+                      ${
+                        t.status === "pending"
+                          ? "bg-gradient-to-br from-[rgba(234,179,8,0.2)] to-[rgba(234,179,8,0.1)] text-[#facc15] border-[rgba(234,179,8,0.3)]"
+                          : t.status === "in-progress"
+                          ? "bg-gradient-to-br from-[rgba(56,189,248,0.2)] to-[rgba(56,189,248,0.1)] text-[#38bdf8] border-[rgba(56,189,248,0.3)]"
+                          : "bg-gradient-to-br from-[rgba(22,163,74,0.2)] to-[rgba(22,163,74,0.1)] text-[#22c55e] border-[rgba(22,163,74,0.3)]"
+                      }`}
+                  >
+                    {t.status}
+                  </span>
+                </div>
+
+                <p className="mt-[0.5rem] mb-[0.8rem] text-[0.9rem] text-[#4b5563]">{t.description}</p>
+
+                {/* History */}
+                {t.statusHistory?.length > 0 && (
+                  <div className="mt-[1rem] p-[0.75rem] bg-[#f9fafb] rounded-[0.5rem] text-[0.85rem] border-l-[3px] border-[#2563eb]">
+                    <strong className="block mb-[0.5rem] text-[#d1d5db]">Status History:</strong>
+                    <ul className="mt-[0.5rem] pl-[1.25rem] list-none">
+                      {t.statusHistory
+                        .slice()
+                        .reverse()
+                        .map((h, i) => (
+                          <li key={i} className="mb-[0.5rem] text-[#9ca3af] pl-[0.5rem]">
+                            <span className="text-[#60a5fa] font-medium">{h.status}</span> by{" "}
+                            {h.changedBy?.username || "System"} on{" "}
+                            {new Date(h.changedAt).toLocaleString()}
+                            {h.note && (
+                              <span className="block ml-[1rem] mt-[0.25rem] italic text-[#6b7280]">
+                                {h.note}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
                 )}
+
+                {/* Actions */}
+                <div className="flex flex-wrap items-center gap-[0.6rem] mt-[0.8rem]">
+                  <select
+                    value={t.status}
+                    onChange={(e) => handleStatusChange(t._id, e.target.value)}
+                    className="px-[0.75rem] py-[0.5rem] rounded-[0.6rem] border border-[#d1d5db] text-[0.85rem] bg-white
+                               hover:border-[#2563eb] transition-all cursor-pointer"
+                  >
+                    <option value="pending">⏳ Pending</option>
+                    <option value="in-progress">🔄 In Progress</option>
+                    <option value="completed">✅ Completed</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(t)}
+                    className="px-[0.75rem] py-[0.5rem] rounded-[0.6rem] border border-[rgba(37,99,235,0.4)] bg-[#eff6ff]
+                               text-[#1d4ed8] text-[0.8rem] transition-all hover:bg-[rgba(59,130,246,0.3)] hover:-translate-y-[1px]"
+                  >
+                    ✏️ Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(t._id)}
+                    className="px-[0.75rem] py-[0.5rem] rounded-[0.6rem] border border-[rgba(248,113,113,0.5)] bg-[#fef2f2]
+                               text-[#b91c1c] text-[0.8rem] transition-all hover:bg-[rgba(220,38,38,0.3)] hover:-translate-y-[1px]"
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -312,4 +396,3 @@ const TasksPage = () => {
 };
 
 export default TasksPage;
-

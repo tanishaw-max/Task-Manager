@@ -24,6 +24,9 @@ router.get("/me", protect, async (req, res) => {
 // Get all users (role-based)
 router.get("/", protect, getAllUsers);
 
+// Create user (super-admin only)
+router.post("/", protect, allowRoles("super-admin"), createUser);
+
 // Get user by ID (super-admin only)
 router.get("/:id", protect, allowRoles("super-admin"), getUserById);
 
